@@ -26,7 +26,7 @@ async def signup(
     - **password**: User's password (min 8 chars, must contain uppercase, lowercase, and number)
     """
     try:
-        return user_service.create_user(user_data)
+        return await user_service.create_user(user_data)
     except HTTPException:
         # Re-raise HTTP exceptions directly to preserve status code and detail
         raise
@@ -36,10 +36,13 @@ async def signup(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.post("/login")
-async def login(login_data: UserLogin):
+async def login(
+    login_data: UserLogin,
+    user_service: UserService = Depends(get_user_service)
+):
     """Login user and return user data with access token."""
     try:
-        user, access_token = get_user_service().authenticate_user(login_data)
+        user, access_token = await user_service.authenticate_user(login_data)
         return {
             "user": user,
             "access_token": access_token,

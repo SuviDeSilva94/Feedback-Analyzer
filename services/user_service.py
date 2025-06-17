@@ -19,7 +19,21 @@ class UserService(UserServiceInterface):
         # Create unique index on email
         self.collection.create_index("email", unique=True)
 
-    def validate_email(self, email: str) -> tuple[bool, str]:
+    async def handle_error(self, error: Exception) -> None:
+        """Handle service errors in a consistent way.
+        
+        Args:
+            error: The exception that occurred during service operation.
+        """
+        logger.error(f"User service error: {str(error)}")
+        if isinstance(error, DuplicateKeyError):
+            raise HTTPException(status_code=400, detail="Email already registered")
+        elif isinstance(error, EmailNotValidError):
+            raise HTTPException(status_code=400, detail=f"Invalid email format: {str(error)}")
+        else:
+            raise HTTPException(status_code=500, detail="Internal server error")
+
+    async def validate_email(self, email: str) -> tuple[bool, str]:
         """Validate email format and check if it exists.
         Returns a tuple of (is_valid, error_message)"""
         try:
@@ -40,6 +54,7 @@ class UserService(UserServiceInterface):
             return False, f"Invalid email format: {str(e)}"
         except Exception as e:
             logger.error(f"Error validating email: {str(e)}")
+            await self.handle_error(e)
             return False, f"Error validating email: {str(e)}"
 
     def validate_password(self, password: str) -> bool:
@@ -58,13 +73,13 @@ class UserService(UserServiceInterface):
             return False
         return True
 
-    def create_user(self, user_data: UserCreate) -> UserResponse:
+    async def create_user(self, user_data: UserCreate) -> UserResponse:
         """Create a new user."""
         try:
             logger.debug(f"Attempting to create user with email: {user_data.email}")
             
             # Validate email and password
-            is_valid_email, email_error = self.validate_email(user_data.email)
+            is_valid_email, email_error = await self.validate_email(user_data.email)
             if not is_valid_email:
                 logger.warning(f"Email validation failed: {email_error}")
                 raise HTTPException(status_code=400, detail=email_error)
@@ -109,9 +124,9 @@ class UserService(UserServiceInterface):
             raise
         except Exception as e:
             logger.error(f"Unexpected error creating user: {str(e)}", exc_info=True)
-            raise HTTPException(status_code=500, detail="Internal server error")
+            await self.handle_error(e)
 
-    def get_user_by_email(self, email: str) -> Optional[UserResponse]:
+    async def get_user_by_email(self, email: str) -> Optional[UserResponse]:
         """Get user by email."""
         try:
             user = self.collection.find_one({"email": email})
@@ -126,9 +141,9 @@ class UserService(UserServiceInterface):
             return None
         except Exception as e:
             logger.error(f"Error getting user by email: {str(e)}")
-            raise HTTPException(status_code=500, detail="Internal server error")
+            await self.handle_error(e)
 
-    def get_user_by_id(self, user_id: str) -> Optional[UserResponse]:
+    async def get_user_by_id(self, user_id: str) -> Optional[UserResponse]:
         """Get user by ID."""
         try:
             from bson import ObjectId
@@ -144,9 +159,9 @@ class UserService(UserServiceInterface):
             return None
         except Exception as e:
             logger.error(f"Error getting user by ID: {str(e)}")
-            raise HTTPException(status_code=500, detail="Internal server error")
+            await self.handle_error(e)
 
-    def authenticate_user(self, login_data: UserLogin) -> Tuple[UserResponse, str]:
+    async def authenticate_user(self, login_data: UserLogin) -> Tuple[UserResponse, str]:
         """Authenticate user and return user data with access token."""
         try:
             user = self.collection.find_one({"email": login_data.email})
@@ -181,7 +196,7 @@ class UserService(UserServiceInterface):
             raise
         except Exception as e:
             logger.error(f"Error authenticating user: {str(e)}")
-            raise HTTPException(status_code=500, detail="Internal server error")
+            await self.handle_error(e)
 
 # Export the UserService class
 __all__ = ['UserService'] 

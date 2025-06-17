@@ -7,6 +7,9 @@ from typing import Dict
 import json
 import redis
 from dotenv import load_dotenv
+from models.notification_models import NotificationData
+from interfaces.notification_service_interface import NotificationServiceInterface
+from fastapi import HTTPException
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -15,7 +18,7 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv()
 
-class NotificationService:
+class NotificationService(NotificationServiceInterface):
     def __init__(self):
         """Initialize notification service with SMTP and Redis settings."""
         # SMTP settings
@@ -37,76 +40,76 @@ class NotificationService:
         )
         self.notification_queue = "notification_queue"
 
-    async def send_negative_feedback_notification(self, feedback_data: Dict) -> bool:
+    async def handle_error(self, error: Exception) -> None:
+        """Handle service errors in a consistent way.
+        
+        Args:
+            error: The exception that occurred during service operation.
+        """
+        logger.error(f"Notification service error: {str(error)}")
+        if isinstance(error, redis.RedisError):
+            raise HTTPException(status_code=503, detail="Notification service temporarily unavailable")
+        elif isinstance(error, smtplib.SMTPException):
+            raise HTTPException(status_code=503, detail="Email service temporarily unavailable")
+        else:
+            raise HTTPException(status_code=500, detail="Error processing notification")
+
+    async def send_negative_feedback_notification(self, feedback_data: NotificationData) -> bool:
         """Queue negative feedback notification for processing."""
         try:
-            # Create notification message
-            notification = {
-                "type": "negative_feedback",
-                "feedback_id": feedback_data['id'],
-                "customer_name": feedback_data['customer']['name'],
-                "customer_phone": feedback_data['customer']['phone'],
-                "sentiment_score": feedback_data['sentiment_scores'].get('negative', 0),
-                "main_topic": feedback_data['main_topic'],
-                "feedback_text": feedback_data['text']
-            }
-
-            # Add to Redis queue
+            notification = feedback_data.dict()
             self.redis_client.lpush(self.notification_queue, json.dumps(notification))
-            logger.info(f"Queued negative feedback notification for feedback ID: {feedback_data['id']}")
+            logger.info(f"Queued negative feedback notification for feedback ID: {feedback_data.feedback_id}")
             return True
-
         except Exception as e:
             logger.error(f"Error queueing notification: {str(e)}")
+            await self.handle_error(e)
             return False
 
-    async def process_notification_queue(self):
-        """Process notifications from the Redis queue."""
+    async def process_notification_queue(self) -> None:
+        """Process the notification queue."""
         try:
             while True:
-                # Get notification from queue (blocking)
-                notification_data = self.redis_client.brpop(self.notification_queue, timeout=0)
-                if notification_data:
-                    _, notification_json = notification_data
-                    notification = json.loads(notification_json)
-                    
-                    # Create email message
-                    msg = MIMEMultipart()
-                    msg['From'] = self.smtp_username
-                    msg['To'] = self.support_email
-                    msg['Subject'] = "⚠️ Negative Feedback Alert"
-
-                    # Create email body
-                    body = f"""
-                    Negative feedback received that requires attention:
-
-                    Feedback ID: {notification['feedback_id']}
-                    Customer: {notification['customer_name']}
-                    Phone: {notification['customer_phone']}
-                    Sentiment Score: {notification['sentiment_score']:.2f}
-                    Main Topic: {notification['main_topic']}
-
-                    Feedback Text:
-                    {notification['feedback_text']}
-
-                    Please review and respond promptly.
-                    """
-
-                    msg.attach(MIMEText(body, 'plain'))
-
-                    # Send email
-                    with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
-                        server.starttls()
-                        server.login(self.smtp_username, self.smtp_password)
-                        server.send_message(msg)
-
-                    logger.info(f"Processed notification for feedback ID: {notification['feedback_id']}")
-
+                notification_data = self.redis_client.rpop(self.notification_queue)
+                if not notification_data:
+                    break
+                
+                notification = json.loads(notification_data)
+                await self._send_email_notification(notification)
+                logger.info(f"Processed notification for feedback ID: {notification.get('feedback_id')}")
         except Exception as e:
             logger.error(f"Error processing notification queue: {str(e)}")
-            # Re-queue the notification if processing fails
-            if notification_data:
-                self.redis_client.lpush(self.notification_queue, notification_json)
+            await self.handle_error(e)
+
+    async def _send_email_notification(self, notification: Dict) -> None:
+        """Send email notification for negative feedback."""
+        try:
+            msg = MIMEMultipart()
+            msg['From'] = self.smtp_username
+            msg['To'] = self.support_email
+            msg['Subject'] = "Negative Feedback Alert"
+
+            body = f"""
+            Negative feedback received:
+            
+            Feedback ID: {notification.get('feedback_id')}
+            Customer: {notification.get('customer_name')}
+            Feedback: {notification.get('feedback_text')}
+            Sentiment: {notification.get('sentiment')}
+            Topic: {notification.get('topic')}
+            """
+
+            msg.attach(MIMEText(body, 'plain'))
+
+            with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
+                server.starttls()
+                server.login(self.smtp_username, self.smtp_password)
+                server.send_message(msg)
+                
+            logger.info(f"Email notification sent for feedback ID: {notification.get('feedback_id')}")
+        except Exception as e:
+            logger.error(f"Error sending email notification: {str(e)}")
+            await self.handle_error(e)
 
 # Create a singleton instance
 notification_service = NotificationService() 

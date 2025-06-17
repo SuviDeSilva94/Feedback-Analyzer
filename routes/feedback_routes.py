@@ -4,8 +4,8 @@ from datetime import datetime
 from bson import ObjectId
 import logging
 import traceback
-from services.feedback_service import feedback_service
-from services.customer_service import customer_service
+from services.feedback_service import FeedbackService
+from services.customer_service import CustomerService
 from models.feedback_models import FeedbackRequest, FeedbackResponse, FeedbackStats
 from dependencies.auth import get_current_user
 from models.user import UserResponse
@@ -20,8 +20,17 @@ router = APIRouter(
     responses={404: {"description": "Not found"}},
 )
 
+def get_feedback_service():
+    return FeedbackService()
+
+def get_customer_service():
+    return CustomerService()
+
 @router.post("/submit-and-analyze-feedback", response_model=FeedbackResponse)
-async def analyze_feedback(feedback: FeedbackRequest):
+async def analyze_feedback(
+    feedback: FeedbackRequest,
+    feedback_service: FeedbackService = Depends(get_feedback_service)
+):
     """Submit and analyze feedback - Public endpoint"""
     try:
         result = await feedback_service.analyze_and_store_feedback(
@@ -35,13 +44,13 @@ async def analyze_feedback(feedback: FeedbackRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/submit-and-analyze-feedback-ai", response_model=FeedbackResponse)
-async def analyze_feedback_ai(feedback: FeedbackRequest):
+async def analyze_feedback_ai(
+    feedback: FeedbackRequest,
+    feedback_service: FeedbackService = Depends(get_feedback_service)
+):
     """Submit and analyze feedback using AI sentiment analysis - Public endpoint"""
     try:
-        result = await feedback_service.analyze_and_store_feedback_ai({
-            "feedbackText": feedback.feedback_text,
-            "customer": feedback.customer.dict()
-        })
+        result = await feedback_service.analyze_and_store_feedback_ai(feedback)
         return result
     except Exception as e:
         error_msg = f"Error in analyze_feedback_ai endpoint: {str(e)}\n{traceback.format_exc()}"
@@ -54,7 +63,8 @@ async def list_all_feedback(
     limit: int = 10,
     sentiment: Optional[str] = None,
     topic: Optional[str] = None,
-    current_user: UserResponse = Depends(get_current_user)
+    current_user: UserResponse = Depends(get_current_user),
+    feedback_service: FeedbackService = Depends(get_feedback_service)
 ):
     """List all feedback with optional filtering - Protected endpoint"""
     try:
@@ -66,7 +76,10 @@ async def list_all_feedback(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/stats", response_model=FeedbackStats)
-async def get_stats(current_user: UserResponse = Depends(get_current_user)):
+async def get_stats(
+    current_user: UserResponse = Depends(get_current_user),
+    feedback_service: FeedbackService = Depends(get_feedback_service)
+):
     """Get feedback statistics - Protected endpoint"""
     try:
         logger.debug("Calling get_stats endpoint")
@@ -81,7 +94,8 @@ async def get_stats(current_user: UserResponse = Depends(get_current_user)):
 @router.get("/{feedback_id}", response_model=FeedbackResponse)
 async def get_feedback_by_id(
     feedback_id: str,
-    current_user: UserResponse = Depends(get_current_user)
+    current_user: UserResponse = Depends(get_current_user),
+    feedback_service: FeedbackService = Depends(get_feedback_service)
 ):
     """Get feedback by ID - Protected endpoint"""
     try:

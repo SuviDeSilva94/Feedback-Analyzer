@@ -15,10 +15,10 @@ class CustomerServiceInterface(BaseService):
         """Validate customer name."""
         pass
 
-    @abstractmethod
-    async def process_customer_data(self, customer_data: Dict) -> Dict:
-        """Process and validate customer data."""
-        pass
+    # @abstractmethod
+    # async def process_customer_data(self, customer_data: Dict) -> Dict:
+    #     """Process and validate customer data."""
+    #     pass
 
     @abstractmethod
     async def get_customer_by_id(self, customer_id: str) -> Optional[Dict]:

@@ -2,8 +2,10 @@ from fastapi import HTTPException
 from typing import Dict, Optional, Any
 import logging
 import re
-from database import get_or_create_customer
+from database import get_or_create_customer, db
 from interfaces.customer_service_interface import CustomerServiceInterface
+from bson import ObjectId
+from models.feedback_models import CustomerData
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -66,19 +68,35 @@ class CustomerService(CustomerServiceInterface):
             )
         return name
 
-    async def process_customer_data(self, customer_data: Dict) -> Dict:
-        """Process and validate customer data."""
-        return await self.process(customer_data)
+    # async def process_customer_data(self, customer_data: Dict) -> Dict:
+    #     """Process and validate customer data."""
+    #     return await self.process(customer_data)
 
-    async def get_customer_by_id(self, customer_id: str) -> Optional[Dict]:
+    async def get_customer_by_id(self, customer_id: str) -> Optional[CustomerData]:
         """Get customer by ID."""
-        # TODO: Implement customer retrieval by ID
-        pass
+        try:
+            if not ObjectId.is_valid(customer_id):
+                return None
+            customer = db['customers'].find_one({"_id": ObjectId(customer_id)})
+            if customer:
+                customer["id"] = str(customer["_id"])
+                customer.pop("_id", None)
+                return CustomerData(**customer)
+            return None
+        except Exception as e:
+            await self.handle_error(e)
 
-    async def get_customer_by_phone(self, phone: str) -> Optional[Dict]:
+    async def get_customer_by_phone(self, phone: str) -> Optional[CustomerData]:
         """Get customer by phone number."""
-        # TODO: Implement customer retrieval by phone
-        pass
+        try:
+            customer = db['customers'].find_one({"phone": phone})
+            if customer:
+                customer["id"] = str(customer["_id"])
+                customer.pop("_id", None)
+                return CustomerData(**customer)
+            return None
+        except Exception as e:
+            await self.handle_error(e)
 
 # Create a singleton instance
 customer_service = CustomerService() 
