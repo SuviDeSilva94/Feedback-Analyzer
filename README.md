@@ -326,6 +326,21 @@ pytest -m "integration"  # Run only integration tests
 
 ## Architecture
 
+### System Design
+The Feedback Analyzer System is built as a modular monolith, combining the benefits of a monolithic architecture with the organizational advantages of a service-oriented design. This approach provides:
+
+1. **Simplified Deployment**
+   - Single application deployment
+   - Unified logging and monitoring
+   - Easier debugging and maintenance
+   - Reduced operational complexity
+
+2. **Modular Service Structure**
+   - Clear service boundaries
+   - Interface-based design
+   - Dependency injection
+   - Separation of concerns
+
 ### System Components
 1. **API Layer**
    - FastAPI-based REST API
@@ -338,6 +353,12 @@ pytest -m "integration"  # Run only integration tests
    - Dependency injection
    - Error handling
    - Logging
+   - Services:
+     - UserService: User management and authentication
+     - FeedbackService: Feedback analysis and storage
+     - NotificationService: Email notifications
+     - TokenService: JWT token management
+     - CustomerService: Customer data management
 
 3. **Analysis Layer**
    - Rule-based analysis
@@ -361,6 +382,29 @@ pytest -m "integration"  # Run only integration tests
 3. Service Layer → Analysis Layer
 4. Analysis Layer → Storage Layer
 5. Storage Layer → Notification Layer (if negative)
+
+### Future Scalability
+While the current architecture is a modular monolith, the system is designed to be easily split into microservices if needed. The clear service boundaries and interface-based design make it possible to:
+
+1. **Horizontal Scaling**
+   - Split services into separate applications
+   - Implement service discovery
+   - Add API gateways
+   - Set up container orchestration
+
+2. **Database Layer**
+   - Implement MongoDB sharding
+   - Add read replicas
+   - Implement database clustering
+   - Add connection pooling
+   - Implement data partitioning
+
+3. **ML Services**
+   - Separate ML services into microservices
+   - Implement model serving infrastructure
+   - Add model caching
+   - Implement batch processing
+   - Add model versioning
 
 ## Assumptions
 
@@ -541,19 +585,19 @@ pytest -m "integration"  # Run only integration tests
 
 ### 3. Architectural Decisions
 **Chosen:**
-- Microservices architecture
+- Modular monolith architecture
 - Interface-based design
 - Dependency injection
 - Async processing
 
 **Why:**
-- Scalability
-- Maintainability
-- Testability
-- Performance
+- Simplified deployment and maintenance
+- Clear service boundaries
+- Easy testing and development
+- Good performance with async operations
 
 **Alternatives Considered:**
-- Monolithic architecture: Less scalable
+- Microservices: Too complex for current scale
 - Direct instantiation: Less testable
 - Synchronous processing: Less performant
 
@@ -591,10 +635,10 @@ pytest -m "integration"  # Run only integration tests
    - Add tracing
 
 3. **Scaling**
-   - Add load balancing
-   - Implement caching
-   - Add database sharding
-   - Set up auto-scaling
+   - Implement connection pooling
+   - Add caching layer
+   - Optimize database queries
+   - Add request queuing
 
 4. **Reliability**
    - Add circuit breakers
@@ -630,9 +674,9 @@ pytest -m "integration"  # Run only integration tests
    - Easy tracking
 
 3. **Scalability**
-   - Horizontal scaling
-   - Load balancing
+   - Connection pooling
    - Caching
+   - Async processing
 
 ### Future Improvements
 1. **Short-term**
