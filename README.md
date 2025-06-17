@@ -390,30 +390,156 @@ pytest -m "integration"  # Run only integration tests
 - Notifications are processed asynchronously
 - Failed notifications are automatically re-queued
 
-## Technical Decisions Log
+## Technical Decisions
 
 ### 1. Technology Stack
-**Chosen:**
-- Python 3.8+
-- FastAPI
-- MongoDB
-- Redis
-- OpenAI GPT-3.5-turbo
+- **Python**: Chosen for its rich ecosystem of data science and NLP libraries
+- **FastAPI**: Modern, fast web framework with automatic OpenAPI documentation
+- **MongoDB**: Flexible NoSQL database for handling dynamic feedback data
+- **Redis**: In-memory data store for caching and message queuing
+- **OpenAI GPT-3.5-turbo**: State-of-the-art language model for sentiment analysis
 
-**Why:**
-- Python: Rich ecosystem, easy to maintain, great for AI/ML
-- FastAPI: Modern, fast, async support, automatic docs
-- MongoDB: Flexible schema, good for feedback data
-- Redis: Fast, reliable for message queuing
-- GPT-3.5: State-of-the-art NLP capabilities
+### 2. MongoDB Over SQL Server
 
-**Alternatives Considered:**
-- Django: Too heavy for this use case
-- PostgreSQL: Less flexible for feedback data
-- RabbitMQ: Overkill for simple queuing
-- Custom ML models: Less accurate than GPT-3.5
+##### Why MongoDB is Ideal for This Application
 
-### 2. Architecture Decisions
+1. **Schema Flexibility for Real-World Feedback**
+   - User feedback varies in structure and content
+   - Natural handling of unpredictable data formats
+   - No need for schema migrations or table alterations
+
+   ```python
+   # Our Feedback Model (feedback_models.py)
+   class FeedbackResponse(BaseModel):
+       id: str
+       text: str
+       customer: Optional[CustomerResponse] = None
+       customer_id: Optional[str] = None
+       sentiment: str
+       sentiment_scores: Dict[str, float]
+       main_topic: str
+       topic_scores: Dict[str, float]
+       top_topics: List[str]
+       created_at: datetime
+   ```
+
+   Example document in MongoDB:
+   ```json
+   {
+     "text": "Great product!",
+     "customer": {
+       "name": "Test User",
+       "phone": "1234567890"
+     },
+     "sentiment": "positive",
+     "sentiment_scores": {
+       "positive": 0.8,
+       "negative": 0.2
+     },
+     "main_topic": "product_quality",
+     "topic_scores": {
+       "product_quality": 0.6,
+       "customer_service": 0.2,
+       "delivery": 0.1,
+       "pricing": 0.05,
+       "usability": 0.05
+     },
+     "top_topics": ["product_quality", "customer_service"],
+     "created_at": "2024-03-19T10:00:00Z"
+   }
+   ```
+
+2. **Rapid Prototyping and Development**
+   - No upfront schema definition required
+   - Easy to add new fields without migrations
+   - Faster feature delivery and iteration
+
+   ```python
+   # Adding new fields is as simple as:
+   async def store_feedback(feedback_data):
+       """Store feedback in MongoDB."""
+       try:
+           # Handle customer data if provided
+           if "customer" in feedback_data:
+               customer_id = get_or_create_customer(feedback_data["customer"])
+               feedback_data["customer_id"] = customer_id
+               del feedback_data["customer"]
+           
+           feedback_data["created_at"] = datetime.utcnow()
+           result = feedback_collection.insert_one(feedback_data)
+           return str(result.inserted_id)
+       except Exception as e:
+           logger.error(f"Error storing feedback: {str(e)}")
+           raise
+   ```
+
+3. **Natural Fit for AI/NLP Outputs**
+   - Native storage of JSON-like data structures
+   - Perfect for storing sentiment analysis and topic classification results
+   - No need for complex table relationships
+
+   ```python
+   # Our Feedback Service (feedback_service.py)
+   class FeedbackService(FeedbackServiceInterface):
+       def __init__(self):
+           self.db = db
+           self.sentiment_analyzer = SentimentAnalyzer()
+           self.ai_sentiment_analyzer = AISentimentAnalyzer()
+           self.topic_classifier = TopicClassifier()
+   ```
+
+4. **Simplicity and Low Overhead**
+   - No need for complex JOINs or foreign keys
+   - Lightweight setup for single-collection model
+   - Reduced operational complexity
+
+   ```python
+   # Database setup (database.py)
+   db = client[MONGODB_DATABASE]
+   feedback_collection = db.feedback
+   customer_collection = db.customers
+   users_collection = db.users
+   ```
+
+5. **Easy Evolution and Scaling**
+   - Start simple, enhance gradually
+   - Add new fields without breaking existing code
+   - Scale horizontally as needed
+
+   ```python
+   # Example of flexible querying (database.py)
+   async def list_feedback(skip=0, limit=10, sentiment=None, topic=None):
+       """List feedback with optional filtering"""
+       try:
+           query = {}
+           if sentiment:
+               query["sentiment"] = sentiment
+           if topic:
+               query["main_topic"] = topic
+               
+           cursor = feedback_collection.find(query).skip(skip).limit(limit)
+           feedback_list = []
+           for doc in cursor:
+               doc["id"] = str(doc.pop("_id"))
+               doc["created_at"] = doc["created_at"].isoformat()
+               feedback_list.append(doc)
+           return feedback_list
+       except Exception as e:
+           logger.error(f"Error listing feedback: {str(e)}")
+           raise
+   ```
+
+##### Use Cases Where MongoDB Excels
+
+| Use Case | Example from Our Code |
+|----------|----------------------|
+| Feedback varies in structure | `FeedbackResponse` model with optional fields |
+| Rapid iteration | `store_feedback` function handling dynamic data |
+| AI metadata storage | Sentiment scores and topic distributions |
+| Simple data model | Single feedback collection with embedded documents |
+| Future scalability | Flexible querying with `list_feedback` |
+
+### 3. Architectural Decisions
 **Chosen:**
 - Microservices architecture
 - Interface-based design
@@ -431,7 +557,7 @@ pytest -m "integration"  # Run only integration tests
 - Direct instantiation: Less testable
 - Synchronous processing: Less performant
 
-### 3. Security Decisions
+### 4. Security Decisions
 **Chosen:**
 - JWT authentication
 - Environment variables
