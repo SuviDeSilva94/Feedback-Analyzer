@@ -10,28 +10,28 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class CustomerService(CustomerServiceInterface):
-    async def validate(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate input data."""
-        try:
-            validated_data = {
-                "name": await self.validate_name(data["name"]),
-                "phone": await self.validate_phone(data["phone"])
-            }
-            return validated_data
-        except Exception as e:
-            await self.handle_error(e)
-            raise
+    # async def validate(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    #     """Validate input data."""
+    #     try:
+    #         validated_data = {
+    #             "name": await self.validate_name(data["name"]),
+    #             "phone": await self.validate_phone(data["phone"])
+    #         }
+    #         return validated_data
+    #     except Exception as e:
+    #         await self.handle_error(e)
+    #         raise
 
-    async def process(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Process the data."""
-        try:
-            validated_data = await self.validate(data)
-            customer_id = get_or_create_customer(validated_data)
-            validated_data["id"] = customer_id
-            return validated_data
-        except Exception as e:
-            await self.handle_error(e)
-            raise
+    # async def process(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    #     """Process the data."""
+    #     try:
+    #         validated_data = await self.validate(data)
+    #         customer_id = get_or_create_customer(validated_data)
+    #         validated_data["id"] = customer_id
+    #         return validated_data
+    #     except Exception as e:
+    #         await self.handle_error(e)
+    #         raise
 
     async def handle_error(self, error: Exception) -> None:
         """Handle service errors."""

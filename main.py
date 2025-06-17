@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 import logging
-from routes import feedback_routes, analysis_routes, root_routes, user_routes
+from routes import feedback_routes, root_routes, user_routes
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -15,5 +15,5 @@ app = FastAPI(
 # Include routers
 app.include_router(root_routes.router)
 app.include_router(feedback_routes.router)
-app.include_router(analysis_routes.router)
+# app.include_router(analysis_routes.router)
 app.include_router(user_routes.router) 

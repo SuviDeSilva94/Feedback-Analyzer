@@ -7,7 +7,7 @@ from ai_topic_classifier import ai_topic_classifier
 from interfaces.feedback_service_interface import FeedbackServiceInterface
 import traceback
 from services.notification_service import notification_service
-from models.feedback import FeedbackRequest, FeedbackResponse
+from models.feedback_models import FeedbackRequest, FeedbackResponse
 from ai_sentiment_analyzer import AISentimentAnalyzer
 import logging
 from fastapi import HTTPException
@@ -23,38 +23,17 @@ class FeedbackService(FeedbackServiceInterface):
         self.ai_sentiment_analyzer = AISentimentAnalyzer()
         self.topic_classifier = TopicClassifier()
 
-    async def validate(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate feedback data."""
-        try:
-            # Validate required fields
-            if not data.get("feedbackText"):
-                raise ValueError("Feedback text is required")
-            
-            # Validate customer data if provided
-            customer = data.get("customer", {})
-            if customer:
-                if not customer.get("name"):
-                    raise ValueError("Customer name is required")
-                if not customer.get("email"):
-                    raise ValueError("Customer email is required")
-            
-            return data
-        except Exception as e:
-            logger.error(f"Validation error: {str(e)}")
-            raise
+    # async def validate(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    #     """Validate feedback data."""
+    #     # This method is required by BaseService but not used in this service
+    #     # Validation is handled by Pydantic models
+    #     return data
 
-    async def process(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Process feedback data."""
-        try:
-            validated_data = await self.validate(data)
-            return await self.analyze_and_store_feedback(
-                validated_data["feedbackText"],
-                validated_data.get("customer", {})
-            )
-        except Exception as e:
-            logger.error(f"Processing error: {str(e)}")
-            await self.handle_error(e)
-            raise
+    # async def process(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    #     """Process feedback data."""
+    #     # This method is required by BaseService but not used in this service
+    #     # Processing is handled by analyze_and_store_feedback and analyze_and_store_feedback_ai
+    #     return data
 
     async def analyze_and_store_feedback(self, text: str, customer_data: Dict) -> Dict:
         """Analyze feedback and store in database."""
